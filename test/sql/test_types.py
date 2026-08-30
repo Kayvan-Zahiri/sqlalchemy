@@ -92,6 +92,7 @@ from sqlalchemy.testing import is_
 from sqlalchemy.testing import is_not
 from sqlalchemy.testing import is_true
 from sqlalchemy.testing import mock
+from sqlalchemy.testing import ne_
 from sqlalchemy.testing import pickleable
 from sqlalchemy.testing import unpickle_in_subprocess
 from sqlalchemy.testing.assertions import expect_raises_message
@@ -2910,6 +2911,64 @@ class EnumTest(AssertsCompiledSQL, fixtures.TablesTest):
         eq_(e1.adapt(Enum).length, 5)
 
         self.assert_compile(e1, "VARCHAR(5)", dialect="default")
+
+    def test_static_cache_key(self):
+        """the values, the enum class and the SchemaType arguments all have
+        to take part in the cache key."""
+
+        SomeEnum = pep435_enum("SomeEnum")
+        SomeEnum("one", 1)
+        SomeEnum("two", 2)
+
+        OtherEnum = pep435_enum("OtherEnum")
+        OtherEnum("one", 1)
+        OtherEnum("two", 2)
+
+        e1 = Enum(SomeEnum, name="myenum")
+
+        eq_(
+            e1._static_cache_key,
+            Enum(SomeEnum, name="myenum")._static_cache_key,
+        )
+
+        for other in (
+            Enum(OtherEnum, name="myenum"),
+            Enum("one", "two", name="myenum"),
+            Enum("one", "six", name="myenum"),
+            Enum(SomeEnum, name="otherenum"),
+            Enum(SomeEnum, name="myenum", schema="someschema"),
+            Enum(SomeEnum, name="myenum", native_enum=False),
+            Enum(SomeEnum, name="myenum", validate_strings=True),
+        ):
+            ne_(e1._static_cache_key, other._static_cache_key)
+
+    def test_compiled_cache_distinguishes_enum_class(self, connection):
+        """a cached statement must not hand back the result processor of a
+        different Enum."""
+
+        SomeEnum = pep435_enum("SomeEnum")
+        some_one = SomeEnum("one", 1)
+
+        OtherEnum = pep435_enum("OtherEnum")
+        other_one = OtherEnum("one", 1)
+
+        enum_table = self.tables.enum_table
+        connection.execute(enum_table.insert(), {"id": 1, "someenum": "one"})
+
+        # both statements render identical SQL, so the second one is only
+        # correct if the two datatypes produce different cache keys
+        eq_(
+            connection.scalar(
+                select(type_coerce(enum_table.c.someenum, Enum(SomeEnum)))
+            ),
+            some_one,
+        )
+        eq_(
+            connection.scalar(
+                select(type_coerce(enum_table.c.someenum, Enum(OtherEnum)))
+            ),
+            other_one,
+        )
 
     @testing.provide_metadata
     def test_create_metadata_bound_no_crash(self):

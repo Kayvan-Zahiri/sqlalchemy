@@ -46,6 +46,7 @@ from .base import _NoArg
 from .base import _NONE_NAME
 from .base import NO_ARG
 from .base import SchemaEventTarget
+from .cache_key import CacheConst
 from .cache_key import HasCacheKey
 from .elements import quoted_name
 from .elements import Slice
@@ -1920,6 +1921,26 @@ class Enum(String, SchemaType, Emulated, TypeEngine[Union[str, enum.Enum]]):
 
         return util.constructor_copy(
             self, self._generic_type_affinity, *args, _disable_warnings=True
+        )
+
+    @util.memoized_property
+    def _static_cache_key(
+        self,
+    ) -> Union[CacheConst, Tuple[Any, ...]]:
+        # the values are positional and the rest of these arrive through
+        # **kw, so none of them are reachable by the constructor argument
+        # scan in TypeEngine._static_cache_key
+        key = super()._static_cache_key
+        if not isinstance(key, tuple):
+            return key
+
+        return key + (
+            ("enums", tuple(self.enums)),
+            ("enum_class", self.enum_class),
+            ("name", self.name),
+            ("schema", self.schema),
+            ("native_enum", self.native_enum),
+            ("validate_strings", self.validate_strings),
         )
 
     def _make_enum_kw(self, kw):

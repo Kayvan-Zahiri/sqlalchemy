@@ -12,6 +12,7 @@ from sqlalchemy import Column
 from sqlalchemy import column
 from sqlalchemy import DateTime
 from sqlalchemy import dialects
+from sqlalchemy import Enum
 from sqlalchemy import exists
 from sqlalchemy import extract
 from sqlalchemy import Float
@@ -976,6 +977,18 @@ class CoreFixtures:
             == column("x", String(50, collation="x", collation_schema="a")),
             column("z", String(50, collation="x", collation_schema="a"))
             == column("x", String(50, collation="x", collation_schema="b")),
+            column("z", Enum("a", "b")) == column("x", Enum("a", "b")),
+            column("z", Enum("a", "b")) == column("x", Enum("c", "d")),
+            column("z", Enum("a", "b", name="e1"))
+            == column("x", Enum("a", "b", name="e1")),
+            column("z", Enum("a", "b", name="e1"))
+            == column("x", Enum("a", "b", name="e2")),
+            column("z", Enum("a", "b", name="e1", schema="s1"))
+            == column("x", Enum("a", "b", name="e1", schema="s2")),
+            column("z", Enum("a", "b", native_enum=False))
+            == column("x", Enum("a", "b", native_enum=True)),
+            column("z", Enum("a", "b", validate_strings=True))
+            == column("x", Enum("a", "b", validate_strings=False)),
         )
     ]
 
